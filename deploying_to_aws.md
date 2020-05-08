@@ -74,9 +74,9 @@ sudo apt-get install -y nodejs && sudo ln -sf /usr/bin/nodejs /usr/local/bin/nod
 This section follows the steps in https://gorails.com/deploy/ubuntu/18.04#nginx
 ```bash
 sudo apt-get install -y dirmngr gnupg
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 561F9B9CAC40B2F7
 sudo apt-get install -y apt-transport-https ca-certificates
 
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 561F9B9CAC40B2F7
 sudo sh -c 'echo deb https://oss-binaries.phusionpassenger.com/apt/passenger bionic main > /etc/apt/sources.list.d/passenger.list'
 sudo apt-get update
 
@@ -84,8 +84,12 @@ sudo apt-get install -y nginx-extras libnginx-mod-http-passenger
 if [ ! -f /etc/nginx/modules-enabled/50-mod-http-passenger.conf ]; then sudo ln -s /usr/share/nginx/modules-available/mod-http-passenger.load /etc/nginx/modules-enabled/50-mod-http-passenger.conf ; fi
 sudo ls /etc/nginx/conf.d/mod-http-passenger.conf
 
+# get the path to the Ruby installation
+which ruby
+# /usr/local/rvm/rubies/ruby-2.5.3/bin/ruby
+
 sudo vim /etc/nginx/conf.d/mod-http-passenger.conf
-# change the passenger_ruby line to match the following:
+# change the passenger_ruby line to match the output of `which ruby`
 passenger_ruby /usr/local/rvm/rubies/ruby-2.5.3/bin/ruby;
 
 sudo service nginx start
@@ -95,14 +99,36 @@ In your AWS EC2 console, under Security Groups, add an inbound firewall rule for
 
 Check and make sure NGINX is running by visiting your server's public IP address (find this in AWS EC2 console) in your web browser and you should be greeted with the "Welcome to NGINX" message
 
-Configure Nginx to point to your application folder
+Create an Nginx configuration to point to your application folder
 ```bash
 sudo vim /etc/nginx/sites-enabled/snorlaxapp
 
-# ...
+# enter vim
+server {
+  listen 80;
+  listen [::]:80;
+
   server_name _;
+  # modify to your target application directory
   root /home/ubuntu/snorlaxapp/public;
-# ...
+
+  passenger_enabled on;
+  passenger_app_env production;
+
+  location /cable {
+    passenger_app_group_name myapp_websocket;
+    passenger_force_max_concurrent_requests_per_process 0;
+  }
+
+  # Allow uploads up to 100MB in size
+  client_max_body_size 100m;
+
+  location ~ ^/(assets|packs) {
+    expires max;
+    gzip_static on;
+  }
+}
+# exit vim
 ```
 
 ---
